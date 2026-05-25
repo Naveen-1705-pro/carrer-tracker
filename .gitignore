@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Local env files
+.env
+.env.local
+backend/.env
+frontend/.env.local
+
+# Next.js build files
+frontend/.next/
+frontend/out/
+
+# Node/TypeScript build files
+backend/dist/
+
+# Local databases
+backend/dev.db
+backend/dev.db-journal
+
+# File uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# OS Files
+.DS_Store
+Thumbs.db

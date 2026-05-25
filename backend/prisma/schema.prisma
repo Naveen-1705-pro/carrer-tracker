@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  password       String?
+  name           String?
+  googleId       String?       @unique
+  avatar         String?
+  role           String        @default("USER")
+  resetToken     String?
+  resetTokenExp  DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  resumes        Resume[]
+  applications   Application[]
+  coverLetters   CoverLetter[]
+  chatSessions   ChatSession[]
+}
+
+model Resume {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  fileName        String?
+  mimeType        String?
+  originalFileUrl String?
+  rawText         String?
+  extractedData   Json?
+  atsScore        Int?
+  atsDetails      Json?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  jobMatches      JobMatch[]
+  coverLetters    CoverLetter[]
+}
+
+model JobMatch {
+  id               String   @id @default(uuid())
+  resumeId         String
+  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription   String
+  matchPercentage  Int
+  missingSkills    Json?
+  matchingKeywords Json?
+  recommendations  Json?
+  createdAt        DateTime @default(now())
+}
+
+model Application {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName      String
+  jobTitle         String
+  jobDescription   String?
+  status           String    @default("APPLIED")
+  matchPercentage  Int?
+  interviewRounds  Json?
+  notes            String?
+  feedback         String?
+  appliedAt        DateTime  @default(now())
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model CoverLetter {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId        String?
+  resume          Resume?  @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  companyName     String?
+  jobTitle        String?
+  jobDescription  String?
+  tone            String   @default("professional")
+  content         String
+
+  createdAt       DateTime @default(now())
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime    @default(now())
+}
+
+model ProcessingLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  status    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model TokenUsage {
+  id        String   @id @default(uuid())
+  userId    String?
+  tokens    Int      @default(0)
+  model     String
+  endpoint  String
+  createdAt DateTime @default(now())
+}
+
+model ResumeEmbedding {
+  id        String   @id @default(uuid())
+  resumeId  String   @unique
+  vector    Json
+  createdAt DateTime @default(now())
+}
