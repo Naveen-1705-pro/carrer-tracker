@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { extractResumeText } from '../services/parser.service';
 import { parseResumeWithAI } from '../services/ai.service';
 import { computeAtsScore, mergeAtsScores } from '../services/ats.service';
+import { prisma } from '../lib/prisma';
 
 export const uploadResume = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -19,17 +20,30 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const ruleAts = computeAtsScore(text);
-    const aiParsed = await parseResumeWithAI(text, targetRole);
-    const aiScore = typeof aiParsed.atsScore === 'number' ? aiParsed.atsScore : undefined;
-    const { score, details } = mergeAtsScores(ruleAts, aiScore);
+    // Check if the same resume raw text already exists in the database
+    const existingResume = await prisma.resume.findFirst({
+      where: { rawText: text },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    const mergedData = {
-      ...aiParsed,
-      atsScore: score,
-      atsDetails: { ...details, ...(aiParsed.atsDetails as object) },
-      ruleBasedAts: details,
-    };
+    let mergedData: any;
+
+    if (existingResume) {
+      mergedData = existingResume.extractedData;
+      console.log(`Reusing cached score and analysis for unauthenticated duplicate resume (Score: ${existingResume.atsScore})`);
+    } else {
+      const ruleAts = computeAtsScore(text);
+      const aiParsed = await parseResumeWithAI(text, targetRole);
+      const aiScore = typeof aiParsed.atsScore === 'number' ? aiParsed.atsScore : undefined;
+      const { score, details } = mergeAtsScores(ruleAts, aiScore);
+
+      mergedData = {
+        ...aiParsed,
+        atsScore: score,
+        atsDetails: { ...details, ...(aiParsed.atsDetails as object) },
+        ruleBasedAts: details,
+      };
+    }
 
     res.status(200).json({
       message: 'Resume parsed successfully',

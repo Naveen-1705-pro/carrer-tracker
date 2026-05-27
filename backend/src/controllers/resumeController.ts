@@ -20,17 +20,36 @@ export const uploadResume = async (req: AuthRequest, res: Response): Promise<voi
   const text = await extractResumeText(req.file.buffer, req.file.mimetype);
   if (!text) throw new AppError('Could not extract text from file');
 
-  const ruleAts = computeAtsScore(text);
-  const aiParsed = await parseResumeWithAI(text, targetRole, req.user.userId);
-  const aiScore = typeof aiParsed.atsScore === 'number' ? aiParsed.atsScore : undefined;
-  const { score, details } = mergeAtsScores(ruleAts, aiScore);
+  // Check if a resume with the exact same text already exists for this user
+  const existingResume = await prisma.resume.findFirst({
+    where: {
+      userId: req.user.userId,
+      rawText: text,
+    },
+    orderBy: { createdAt: 'asc' }, // Get the earliest upload to keep scores identical to the first time
+  });
 
-  const mergedData = {
-    ...aiParsed,
-    atsScore: score,
-    atsDetails: { ...details, ...(aiParsed.atsDetails as object) },
-    ruleBasedAts: details,
-  };
+  let score: number;
+  let mergedData: any;
+
+  if (existingResume) {
+    score = existingResume.atsScore ?? 0;
+    mergedData = existingResume.extractedData;
+    console.log(`Reusing existing score and analysis for duplicate resume: "${existingResume.title}" (Score: ${score})`);
+  } else {
+    const ruleAts = computeAtsScore(text);
+    const aiParsed = await parseResumeWithAI(text, targetRole, req.user.userId);
+    const aiScore = typeof aiParsed.atsScore === 'number' ? aiParsed.atsScore : undefined;
+    const { score: computedScore, details } = mergeAtsScores(ruleAts, aiScore);
+    score = computedScore;
+
+    mergedData = {
+      ...aiParsed,
+      atsScore: score,
+      atsDetails: { ...details, ...(aiParsed.atsDetails as object) },
+      ruleBasedAts: details,
+    };
+  }
 
   if (!fs.existsSync(env.uploadDir)) fs.mkdirSync(env.uploadDir, { recursive: true });
   const filePath = path.join(env.uploadDir, `${Date.now()}-${req.file.originalname}`);
